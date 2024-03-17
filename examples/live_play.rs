@@ -1,7 +1,6 @@
+extern crate douyin_sdk; // 导入lib.rs中的库
 
-extern crate douyin; // 导入lib.rs中的库
-
-use douyin::{make_random_string, DouyinConfig, SDK}; // 使用lib.rs中的函数
+use douyin_sdk::{make_random_string, DouyinConfig, LiveOpenReqDataStart, SDK}; // 使用lib.rs中的函数
 
 #[tokio::main]
 async fn main ()  {
@@ -19,7 +18,7 @@ async fn main ()  {
 
     println!("make_random_string() - {}", make_random_string());
 
-    let task_res = sdk.task("start","roomid","appid","msg_type").await;
+    let task_res = sdk.task::<LiveOpenReqDataStart>("start","roomid","appid","msg_type").await;
+    let info = sdk.info("exe启动时携带的token").await;
     println!("task_res ----- {:?}", task_res);
-
 }

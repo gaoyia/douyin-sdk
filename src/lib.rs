@@ -1,23 +1,43 @@
+//! 抖音的开放平台的第三方SDK
+//! 
+//! # 说明
+//! 
+//! 这是一个，个人（被动）维护的，的抖音开放平台的RustSDK项目
+//! 仅限使用到的API进行封装，不包含其他API，后续可能会逐步增加其他API
+//! 如果您需要对这个SDK进行扩展，包括项目结构调整，提供功能说明，或添加测试用例，提交PR，或发送邮件。稍后我会对项目进行更新。
+//! 
+//! 对应的 抖音官方文档为[https://developer.open-douyin.com/docs/resource/zh-CN/interaction/develop/server/server-api-introduction]()
+//! 
+//! 我刚看到抖音的服务端分为很多版块，这里只是直播小玩法的服务端文档，由于对文档不熟悉，不知道如何抽取公共功能。针对版本号~0.1，仅对其扩展不做破坏性变更
+//! 
+//! 这只是一个练手项目，对于rust我还有很多困惑，也不知道如何精简项目，欢迎对Rust进行学习和交流。
+//! 
+//! # Example
+//! ```rust
+//!     let app_private_key = include_str!("private_key.pem");
+//!     let config = DouyinConfig {
+//!         appid: "appid",
+//!         secret: "secret",
+//!         app_private_key: app_private_key,
+//!         ..Default::default()
+//!     };
+//!     let mut sdk = SDK::new(config);
+//! 
+//!     // 直播小玩法->开发->服务端->接口调用凭证->getAccessToken->获取access_token
+//!     let token = sdk.get_access_token().await;
+//!     // 直播小玩法->开发->服务端->直播能力->数据开放->启动任务
+//!     let start_res = sdk.task::<LiveOpenReqDataStart>("start","roomid","appid","msg_type").await;
+//!     // 直播小玩法->开发->服务端->直播能力->数据开放->停止任务
+//!     let stop_res = sdk.task::<LiveOpenReqDataStop>("stop","roomid","appid","msg_type").await;
+//!     // 直播小玩法->开发->服务端->直播能力->数据开放->查询任务状态
+//!     let status_res = sdk.task::<LiveOpenReqDataStatus>("status","roomid","appid","msg_type").await;
+//!     // 直播小玩法->开发->服务端->直播能力->直播信息
+//!     let info = sdk.info("exe启动时携带的token").await;
+//! ````
+pub mod sign;
 
-/// 抖音的开放平台的第三方SDK
-/// 
-/// # 说明
-/// 
-/// 对应的 抖音官方文档为[https://developer.open-douyin.com/docs/resource/zh-CN/interaction/develop/server/server-api-introduction]()
-/// 
-/// 这是一个，个人（被动）维护的，的抖音开放平台的RustSDK项目
-/// 仅限使用到的API进行封装，不包含其他API，后续可能会逐步增加其他API
-/// 如果您需要对这个SDK进行扩展，请按照以下格式进行说明，并添加测试用例，提交PR，或发送邮件。稍后我会对项目进行更新。
-/// 
-/// # 示例
-/// 
-/// ```
-/// let config = douyin::Config::new("app_id", "app_secret");
-/// let sdk = douyin::new(config);
-/// ```
-/// 
 
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::{
     fs::{read_to_string, File},
@@ -75,18 +95,17 @@ pub struct AccessTokenResData {
 }
 
 #[derive(Deserialize, Serialize,Debug,Clone)]
-pub struct LiveOpenRes {
+pub struct LiveOpenRes<T> {
     err_no: i32,
     err_msg: String,
     logid:String,
-    data:LiveOpenReqDataEnum
+    data:T
 }
 #[derive(Deserialize, Serialize,Debug,Clone)]
 pub enum LiveOpenReqDataEnum {
-    LiveOpenReqDataStart(LiveOpenReqDataStart),
-    LiveOpenReqDataStop(LiveOpenReqDataStop),
-    LiveOpenReqDataStatus(LiveOpenReqDataStatus),
-
+    Start(LiveOpenReqDataStart),
+    Stop(LiveOpenReqDataStop),
+    Status(LiveOpenReqDataStatus),
 }
 #[derive(Deserialize, Serialize,Debug,Clone)]
 pub struct LiveOpenReqDataStart {
@@ -95,6 +114,23 @@ pub struct LiveOpenReqDataStart {
 #[derive(Deserialize, Serialize,Debug,Clone)]
 pub struct LiveOpenReqDataStop {
 }
+
+
+#[derive(Debug, Serialize,Deserialize)]
+pub struct RoomInfo {
+    pub errcode: Option<i32>,
+    pub errmsg: Option<String>,
+    pub data: Option<RoomInfoData>,
+}
+
+#[derive(Debug,Serialize, Deserialize)]
+pub struct RoomInfoData {
+    pub room_id: u64,
+    pub anchor_open_id: String,
+    pub avatar_url: String,
+    pub nick_name: String,
+}
+
 #[derive(Deserialize, Serialize,Debug,Clone)]
 pub struct LiveOpenReqDataStatus {
     pub status: u8, // 1 任务不存在 2任务未启动 3任务运行中
@@ -110,7 +146,7 @@ impl SDK  {
             secret: String::from(config.secret),
             app_private_key: String::from(config.app_private_key),
             access_base_url: config.access_base_url.unwrap_or("https://developer.toutiao.com").to_owned(),
-            base_url:  config.base_url.unwrap_or("https://developer.toutiao.com").to_owned(),
+            base_url:  config.base_url.unwrap_or("https://webcast.bytedance.com").to_owned(),
             pkcs_type: config.pkcs_type.unwrap_or(sign::PkcsType::Pkcs1),
 
             access_token: "".to_string(),
@@ -263,7 +299,7 @@ impl SDK  {
             .await;
         return res;
     }
-    pub async fn request(&mut self,path:&str,map:Value) -> Result<reqwest::Response, reqwest::Error> {
+    pub async fn sign_request(&mut self,path:&str,map:Value) -> Result<reqwest::Response, reqwest::Error> {
         let http_method = "POST";
         let timestamp = get_now_timestamp(false).to_string();
         let random_string = make_random_string();
@@ -292,16 +328,42 @@ impl SDK  {
         return res;
     }
 
+    
+    pub async fn access_request(&mut self,path:&str,map:Value) -> Result<reqwest::Response, reqwest::Error> {
+        let client = reqwest::Client::new();
+        let access_token = self.get_access_token().await.expect("获取access_token失败");
+        let res = client.post(format!("{}{}", self.base_url, path))
+            .header("Accept", "application/json")
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header("X-Token", access_token)
+            .json(&map) 
+            .send()
+            .await;
+        return res;
+    }
     /**
      * post请求task 
      */
-    pub async fn task(&mut self,task:&str,roomid:&str,appid:&str,msg_type:&str) -> Result<LiveOpenRes, reqwest::Error> {
+    pub async fn task<T>(&mut self,task:&str,roomid:&str,appid:&str,msg_type:&str) -> Result<LiveOpenRes<T>, reqwest::Error>
+        where T: DeserializeOwned
+    {
         let path = format!("/api/live_data/task/{}",task);
-        let result: Result<reqwest::Response, reqwest::Error> = self.request(&path[..],json!({"roomid":roomid,"appid":appid,"msg_type":msg_type})).await;
-        let res = result?.json::<LiveOpenRes>().await;
-        return res
+        let result: Result<reqwest::Response, reqwest::Error> = self.sign_request(&path[..],json!({"roomid":roomid,"appid":appid,"msg_type":msg_type})).await;
+        let res = result?.json::<LiveOpenRes<T>>().await;
+        return res;
+    }
+
+    /**
+     * 使用 access_token 获取 直播间信息
+     */
+    pub async fn info(&mut self,token:&str) -> Result<RoomInfo, reqwest::Error> {
+        let result: Result<reqwest::Response, reqwest::Error> = self.access_request("/api/webcastmate/info",json!({"token":token})).await;
+        let res = result?.json::<RoomInfo>().await;
+        return res;
     }
 }
+
+
 
 /**
  * 生成随机字符串
@@ -329,87 +391,5 @@ pub fn get_now_timestamp(ms: bool) -> u64 {
         return since_epoch.as_secs() * 1000 + since_epoch.subsec_millis() as u64;
     } else {
         return since_epoch.as_secs()
-    }
-}
-mod sign {
-    use base64::Engine;
-    use rsa::{pkcs1::DecodeRsaPrivateKey, pkcs8::DecodePrivateKey, Pkcs1v15Sign, RsaPrivateKey};
-    use rsa::sha2::{Digest, Sha256};
-
-    /**
-     * 定义支持的PKCS类型
-     */
-    #[derive(Debug)]
-    pub enum PkcsType {
-        Pkcs8,
-        Pkcs1,
-    }
-
-    /**
-     * 单行 key 字符转多行(每行最多64个字符)
-     */
-    fn get_key_lines(key_str: &str) -> Vec<String> {
-        key_str
-            .chars()
-            .collect::<Vec<char>>()
-            .chunks(64)
-            .map(|ss| ss.iter().collect::<String>())
-            .collect::<Vec<String>>()
-    }
-
-    /**
-     * 获取pem格式的私钥字符串
-     */
-    pub fn get_pri_pem_key_str(key_str: &str, pkcs: &PkcsType) -> String {
-        let (begin, end) = match pkcs {
-            PkcsType::Pkcs1 => (
-                "-----BEGIN RSA PRIVATE KEY-----",
-                "-----END RSA PRIVATE KEY-----",
-            ),
-            PkcsType::Pkcs8 => ("-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----"),
-        };
-
-        let mut lines = get_key_lines(key_str);
-        lines.insert(0, begin.to_string());
-        lines.push(end.to_string());
-
-        lines.join("\n")
-    }
-
-    /**
-     * 获取PEM格式的私钥
-     */
-    pub fn get_pri_pem_key(key_str: &str, pkcs: &PkcsType,parse:bool) -> RsaPrivateKey {
-        let mut pem_key_str = key_str.to_string();
-        if parse {
-            pem_key_str = get_pri_pem_key_str(key_str, pkcs);
-        } 
-        let pem_key = match pkcs {
-            PkcsType::Pkcs1 => RsaPrivateKey::from_pkcs1_pem(&pem_key_str).unwrap(),
-            PkcsType::Pkcs8 => RsaPrivateKey::from_pkcs8_pem(&pem_key_str).unwrap(),
-        };
-        pem_key
-    }
-
-    /**
-     * 签名
-     */
-    pub fn sign(content: &[u8], pri_key: &str, pkcs: &PkcsType) -> Vec<u8> {
-        let pem_key = get_pri_pem_key(pri_key, pkcs,false);
-        // 签名的padding与hash方法一致, rsa::sha2::* 需要引入rsa crate时,添加sha2 features
-        let padding: Pkcs1v15Sign = Pkcs1v15Sign::new::<rsa::sha2::Sha256>();
-        // 对加签的原文进行sha2摘要,然后对摘要内容加签
-        let hashed = Sha256::new().chain_update(content).finalize();
-        let sig: Vec<u8> = pem_key.sign( padding, &hashed).unwrap();
-        sig
-    }
-
-    /**
-     * 签名,并对签名进行base64编码
-     */
-    pub fn sign_base64(content: &[u8], pri_key: &str, pkcs: &PkcsType) -> String {
-        let sig = sign(content, pri_key, pkcs);
-        let sig_base64 = base64::engine::general_purpose::STANDARD.encode(sig);
-        sig_base64
     }
 }
