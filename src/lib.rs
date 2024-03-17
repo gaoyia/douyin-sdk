@@ -12,7 +12,24 @@
 //! 
 //! 这只是一个练手项目，对于rust我还有很多困惑，也不知道如何精简项目，欢迎对Rust进行学习和交流。
 //! 
+//! 
+//! # 关于依赖
+//! 
+//! 这是我发布的第一个Rust项目，我不确定需不需要在您的cargo中添加依赖,所以我把依赖列表放在这里
+//! ```toml
+//! [dependencies]
+//! tokio = { version = "1", features = ["full"] }
+//! serde = { version = "1.0", features = ["derive"] }
+//! serde_json = "1.0"
+//! reqwest = { version = "0.11.26", features = ["json"] }
+//! rand = "0.8.5"
+//! rsa={version="0.9", features = ["sha2"]}
+//! base64="0.22"
+//! ```
+//! 
+//! 
 //! # Example
+//! 
 //! ```rust
 //!     let app_private_key = include_str!("private_key.pem");
 //!     let config = DouyinConfig {
@@ -33,6 +50,17 @@
 //!     let status_res = sdk.task::<LiveOpenReqDataStatus>("status","roomid","appid","msg_type").await;
 //!     // 直播小玩法->开发->服务端->直播能力->直播信息
 //!     let info = sdk.info("exe启动时携带的token").await;
+//!     println!("start_res: {:#?}", start_res);
+//!     println!("stop_res: {:#?}", stop_res);
+//!     println!("status_res: {:#?}", status_res);
+//!     println!("info: {:#?}", info);
+//!     println!("token: {:#?}", access_token);
+//!
+//!     let random_str = make_random_string();
+//!     let ts = get_now_timestamp(false);
+//!
+//!     println!("random_str: {:#?}", random_str);
+//!     println!("ts: {:#?}", ts);
 //! ````
 pub mod sign;
 
