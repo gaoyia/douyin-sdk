@@ -73,6 +73,5 @@ pub fn sign(content: &[u8], pri_key: &str, pkcs: &PkcsType) -> Vec<u8> {
  */
 pub fn sign_base64(content: &[u8], pri_key: &str, pkcs: &PkcsType) -> String {
     let sig = sign(content, pri_key, pkcs);
-    let sig_base64 = base64::engine::general_purpose::STANDARD.encode(sig);
-    sig_base64
+    base64::engine::general_purpose::STANDARD.encode(sig)
 }

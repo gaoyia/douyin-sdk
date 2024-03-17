@@ -50,21 +50,13 @@
 //!     let status_res = sdk.task::<LiveOpenReqDataStatus>("status","roomid","appid","msg_type").await;
 //!     // 直播小玩法->开发->服务端->直播能力->直播信息
 //!     let info = sdk.info("exe启动时携带的token").await;
-//!     println!("start_res: {:#?}", start_res);
-//!     println!("stop_res: {:#?}", stop_res);
-//!     println!("status_res: {:#?}", status_res);
-//!     println!("info: {:#?}", info);
-//!     println!("token: {:#?}", access_token);
 //!
 //!     let random_str = make_random_string();
 //!     let ts = get_now_timestamp(false);
-//!
-//!     println!("random_str: {:#?}", random_str);
-//!     println!("ts: {:#?}", ts);
 //! ````
 pub mod sign;
 
-
+use base64::Engine;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::{
@@ -75,6 +67,8 @@ use tokio::{
     }
 };
 use rand::Rng;
+
+use std::{collections::BTreeMap, string};
 
 /*
 * SDK 的结构
@@ -327,18 +321,18 @@ impl SDK  {
             .await;
         return res;
     }
-    pub async fn sign_request(&mut self,path:&str,map:Value) -> Result<reqwest::Response, reqwest::Error> {
+    pub async fn sign_request(&mut self,path:&str,body:Value) -> Result<reqwest::Response, reqwest::Error> {
         let http_method = "POST";
         let timestamp = get_now_timestamp(false).to_string();
         let random_string = make_random_string();
-        let json_str = serde_json::to_string(&map).unwrap();
+        let json_str = serde_json::to_string(&body).unwrap();
         let sign_str = format!(
             "{}\n{}\n{}\n{}\n{}\n",
             http_method, path, timestamp, random_string, json_str
         );
         
         let base64_str  = sign::sign_base64(sign_str.as_bytes(),&self.app_private_key,&sign::PkcsType::Pkcs8);
-    
+
         let byte_authorization = format!(
             "SHA256-RSA2048 appid=\"{}\",nonce_str=\"{}\",timestamp=\"{}\",key_version=\"1\",signature=\"{}\"",
             self.appid, random_string, timestamp,base64_str
@@ -350,21 +344,21 @@ impl SDK  {
             .header("Accept", "application/json")
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .header("access-token", access_token)
-            .json(&map) 
+            .json(&body) 
             .send()
             .await;
         return res;
     }
 
     
-    pub async fn access_request(&mut self,path:&str,map:Value) -> Result<reqwest::Response, reqwest::Error> {
+    pub async fn access_request(&mut self,path:&str,body:Value) -> Result<reqwest::Response, reqwest::Error> {
         let client = reqwest::Client::new();
         let access_token = self.get_access_token().await.expect("获取access_token失败");
         let res = client.post(format!("{}{}", self.base_url, path))
             .header("Accept", "application/json")
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .header("X-Token", access_token)
-            .json(&map) 
+            .json(&body) 
             .send()
             .await;
         return res;
@@ -389,9 +383,34 @@ impl SDK  {
         let res = result?.json::<RoomInfo>().await;
         return res;
     }
+
+    /**
+     * verify sign 回调验证签名
+     */
+    pub fn verify_sign(&mut self,map:BTreeMap<&str,&str>,body:&str,app_secret:&str) -> String {
+        let sign_str = map_2_str(map);
+        let raw_data = format!("{}{}{}",sign_str,body,app_secret);
+        let md5_val = md5::compute(&raw_data[..]);
+        let bytes =  md5_val.0;
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    }
 }
 
-
+/**
+ * 按字典序拼接 header 字符串
+ */
+pub fn map_2_str(header:BTreeMap<&str,&str>) -> String {
+    let mut header_str = String::new();
+    let mut i: usize = 1;
+    for (key, value) in &header {
+        header_str.push_str(&format!("{}={}", key, value));
+        if i !=0 && i < header.len() {
+            header_str.push_str("&");
+        }
+        i+= 1;
+    }
+    header_str
+}
 
 /**
  * 生成随机字符串

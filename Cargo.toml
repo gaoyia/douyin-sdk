@@ -1,11 +1,13 @@
 [package]
 name = "douyin_sdk"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["gaoyia <gaoyia@qq.com>"]
 repository = "https://github.com/gaoyia/douyin-sdk"
 license = "MIT OR Apache-2.0"
 description = "个人懒维护的抖音SDK"
+documentation = "https://docs.rs/douyin_sdk"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,3 +19,4 @@ reqwest = { version = "0.11.26", features = ["json"] }
 rand = "0.8.5"
 rsa={version="0.9", features = ["sha2"]}
 base64="0.22"
+md5 = "0.7"
