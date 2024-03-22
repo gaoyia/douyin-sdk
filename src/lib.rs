@@ -68,7 +68,7 @@ use tokio::{
 };
 use rand::Rng;
 
-use std::{collections::BTreeMap, string};
+use std::collections::BTreeMap;
 
 /*
 * SDK 的结构
@@ -106,22 +106,22 @@ pub struct DouyinConfig<'a> {
 */
 #[derive(Deserialize, Serialize,Debug,Clone)]
 pub struct AccessTokenRes {
-    err_no: i32,
-    err_tips: String,
-    data: AccessTokenResData
+    pub err_no: i32,
+    pub err_tips: String,
+    pub data: AccessTokenResData
 }
 #[derive(Deserialize, Serialize,Debug,Clone)]
 pub struct AccessTokenResData {
-    access_token: String,
-    expires_in: u64
+    pub access_token: String,
+    pub expires_in: u64
 }
 
 #[derive(Deserialize, Serialize,Debug,Clone)]
 pub struct LiveOpenRes<T> {
-    err_no: i32,
-    err_msg: String,
-    logid:String,
-    data:T
+    pub err_no: i32,
+    pub err_msg: String,
+    pub logid:String,
+    pub data:T
 }
 #[derive(Deserialize, Serialize,Debug,Clone)]
 pub enum LiveOpenReqDataEnum {
